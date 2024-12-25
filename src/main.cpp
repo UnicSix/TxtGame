@@ -79,7 +79,7 @@ void genTarrain(uint32_t *worldMap){
 
 void genTreasure(uint32_t *worldMap){
   int treasurePos = std::rand()%900;
-  while(((worldMap[treasurePos]&ROCK)&(~worldMap[treasurePos]+ROCK))){
+  while((worldMap[treasurePos]&ROCK)){
     treasurePos = std::rand()%900;
   }
   worldMap[treasurePos] |= TREASURE;

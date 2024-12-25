@@ -29,6 +29,7 @@ inline const std::map<char, int> moveDirec = {
   {'d', 3}, {'D', 3}
 };
 
+// pre-defined terrains
 inline const std::vector<std::vector<int>>tarrains = {
   { // generate a 3x3 block of rock on map
     -31, -30, -29,
