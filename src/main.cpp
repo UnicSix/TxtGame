@@ -210,6 +210,8 @@ void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<u
   mapGraph[start].prevPos = start;
   mapGraph[start].dStart = 0;
   mapGraph[start].dDest = manhattanDist(start, dest);
+  std::cout << "test git\n";
+  // test test git
 
 }
 
