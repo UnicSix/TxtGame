@@ -10,6 +10,7 @@
 #include <iostream>
 #include <ostream>
 #include <bitset>
+#include <queue>
 #include <utility>
 #include "GameTypes.h"
 
@@ -25,15 +26,28 @@ typedef struct graphNode{
   uint32_t dStart  = UINT32_MAX;
   uint32_t dDest   = UINT32_MAX;
   uint32_t dSum    = UINT32_MAX;
+  bool     isVisited = false;
   // Value of sum must be updated AFTER dStart and dDest
   // There is no possibility of obtaining a negative edge in this case
+  bool operator>(const graphNode &other) const{
+    return dSum > other.dSum;
+  }
+  friend std::ostream& operator<<(std::ostream& os, const graphNode&node){
+    os << "Previous Node: " << node.prevPos << "\n"
+       << "Sum Dist: " << node.dSum
+       << std::endl;
+    return os;
+  }
 } graphNode;
 
-uint32_t currentTopTile(const uint32_t pos);
 uint32_t playerMove(const uint32_t pos, const char direc, uint32_t *worldMap);
 void printMap(const uint32_t *worldMap);
 uint32_t genTreasure(uint32_t *worldMap);
 void genTerrain(uint32_t *worldMap);
+inline uint32_t currentTopTile(const uint32_t posInfo){
+  // the return value can be used to search correspond tile char defined in GameType.h
+  return posInfo&(~posInfo+1);
+}
 
 // Notice: the pair parameter here only contain 2 numbers 
 // but represents 2 nodes' coordinates
@@ -50,13 +64,13 @@ int main(){
   graphNode mapGraph[900];
 
   int pos = std::rand()%900;
+  int treasurePos;
   int tarrainSpawnCnt = std::rand()%8+3;
 
   for (int i=0; i<tarrainSpawnCnt; i++) {
-    std::cout << tarrainSpawnCnt << std::endl;
     genTerrain(worldMap);
   }
-  genTreasure(worldMap);
+  treasurePos = genTreasure(worldMap);
 
   // WARN: Player sometimes spawns in terrain
   printf("Player Init Location: (%2d, %2d)\n", (pos)%30+1, (pos)/30+1);
@@ -87,9 +101,8 @@ int main(){
   // }
   { // block for testing graph functionalities
     graphNode mapGraph[900];
+    pathfindingAStar(worldMap, mapGraph, std::pair<int, int>(pos, treasurePos));
   }
-  int pA=5, pB=890;
-  printf("Dist test: D(%d, %d) = %d\n", pA, pB, manhattanDist(pA, pB));
 
   std::cout << "Quit Game\n";
   return 0;
@@ -119,7 +132,7 @@ void genTerrain(uint32_t *worldMap){
 * H cost: D(Nd, Nn)
 * F cost: G cost + H cost
 *
-* ASSUMPTION: The Manhattan Distance func should only be applied to nodes adjacent (as a fundamental measure method)
+* ASSUMPTION: The Manhattan Distance func should only be applied to adjacent nodes (as a fundamental measure method)
 * The distance fot those farthur nodes (relative to Ns) are measured by data stored in nodes nearby them (adjacent nodes).
 * 
 * We not only need to know the cost to neighboor nodes, but also need to know how far
@@ -198,19 +211,43 @@ void printMap(const uint32_t *worldMap){
   }
 }
 
-inline uint32_t currentTopTile(const uint32_t posInfo){
-  // the return value can be used to search correspond tile char defined in GameType.h
-  return posInfo&(~posInfo+1);
-}
 
 void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<uint32_t, uint32_t> coord){
   uint32_t start = coord.first;
   uint32_t dest = coord.second;
+  uint32_t cur = start;
+  uint32_t curLeft, curRight, curUp, curDown;
+  std::priority_queue
+    <graphNode, std::vector<graphNode>, std::greater<graphNode>> nodeQueue;
+
   // Mark player position as start node
   mapGraph[start].prevPos = start;
   mapGraph[start].dStart = 0;
-  mapGraph[start].dDest = manhattanDist(start, dest);
+  mapGraph[start].dDest = manhattanDist(start, dest); // shorest path length in theory
+  mapGraph[start].dSum = mapGraph[start].dStart + mapGraph[start].dDest;
+  mapGraph[start].isVisited = true;
 
+  // Search for path until visit dest node
+  // while (true) {
+  //   if(cur == dest){
+  //     std::cout << "Path is Found" << std::endl;
+  //     break;
+  //   }
+  //
+  //   // This part needs to be revised if we want to change the ratio of the map
+  //   if(cur>29 && cur<900)  // Not at the top of the map
+  //     curUp = cur-30;
+  //   if(cur<900 && cur>870) // Not at the bottom of the map
+  //     curDown = cur+30;
+  //   if(cur%30!=0)          // Not at left side of the map
+  //     curLeft = cur-1;
+  //   if(cur%30!=29)         // Not at Right side of the map
+  //     curRight = cur-1;
+  //   // Visit adjacent nodes if(node available && no node in priority queue)
+  //   if (curUp!=dest && !(worldMap[cur+1]&ROCK)) {
+  //   }
+  //   
+  // }
 }
 
 
