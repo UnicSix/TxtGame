@@ -22,10 +22,11 @@ static int score;
 static int treasureCnt=0; // manage amount of treasure in map
 
 typedef struct graphNode{
+  int curPos = -1;
   int prevPos = -1;
-  uint32_t dStart  = UINT32_MAX;
-  uint32_t dDest   = UINT32_MAX;
-  uint32_t dSum    = UINT32_MAX;
+  int dStart  = UINT32_MAX;
+  int dDest   = UINT32_MAX;
+  int dSum    = UINT32_MAX;
   bool     isVisited = false;
   // Value of sum must be updated AFTER dStart and dDest
   // There is no possibility of obtaining a negative edge in this case
@@ -33,8 +34,9 @@ typedef struct graphNode{
     return dSum > other.dSum;
   }
   friend std::ostream& operator<<(std::ostream& os, const graphNode&node){
-    os << "Previous Node: " << node.prevPos << "\n"
-       << "Sum Dist: " << node.dSum
+    os << "Current Node: "  << node.curPos  << "\n"
+       << "Previous Node: " << node.prevPos << "\n"
+       << "Sum Dist: "      << node.dSum
        << std::endl;
     return os;
   }
@@ -52,8 +54,10 @@ inline uint32_t currentTopTile(const uint32_t posInfo){
 // Notice: the pair parameter here only contain 2 numbers 
 // but represents 2 nodes' coordinates
 void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<uint32_t, uint32_t> coord);
-inline int manhattanDist(int pA, int pB){
-  return std::abs(pA/30-pB/30) + std::abs(pA%30-pB%30);
+inline int manhattanDist(uint32_t *worldMap, int pA, int pB){
+  return !(worldMap[pA]&ROCK && worldMap[pB]&ROCK)
+  ? std::abs(pA/30-pB/30) + std::abs(pA%30-pB%30)
+  : INT32_MAX;
 }
 
 int main(){
@@ -221,32 +225,86 @@ void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<u
     <graphNode, std::vector<graphNode>, std::greater<graphNode>> nodeQueue;
 
   // Mark player position as start node
+  mapGraph[start].curPos = start;
   mapGraph[start].prevPos = start;
   mapGraph[start].dStart = 0;
-  mapGraph[start].dDest = manhattanDist(start, dest); // shorest path length in theory
+  mapGraph[start].dDest = manhattanDist(worldMap, start, dest);
   mapGraph[start].dSum = mapGraph[start].dStart + mapGraph[start].dDest;
   mapGraph[start].isVisited = true;
 
   // Search for path until visit dest node
-  // while (true) {
-  //   if(cur == dest){
-  //     std::cout << "Path is Found" << std::endl;
-  //     break;
-  //   }
-  //
-  //   // This part needs to be revised if we want to change the ratio of the map
-  //   if(cur>29 && cur<900)  // Not at the top of the map
-  //     curUp = cur-30;
-  //   if(cur<900 && cur>870) // Not at the bottom of the map
-  //     curDown = cur+30;
-  //   if(cur%30!=0)          // Not at left side of the map
-  //     curLeft = cur-1;
-  //   if(cur%30!=29)         // Not at Right side of the map
-  //     curRight = cur-1;
-  //   // Visit adjacent nodes if(node available && no node in priority queue)
-  //   if (curUp!=dest && !(worldMap[cur+1]&ROCK)) {
-  //   }
-  //   
+  while (true) {
+    if(cur == dest){
+      std::cout << "Start node: " << start << std::endl;
+      std::cout << "Current node: " << cur << std::endl;
+      std::cout << "Path is Found" << std::endl;
+      break;
+    }
+  
+    // This part needs to be revised if we want to change the ratio of the map
+    if(cur>29 && cur<900){ // Not at the top of the map
+      // 1 is the edge weight of this grid-based mapGraph
+      // dDest is NOT actual distance but theoritically shortest distance
+      curUp = cur-30;
+      mapGraph[curUp].curPos = curUp;
+      mapGraph[curUp].prevPos = cur;
+      mapGraph[curUp].dStart = mapGraph[cur].dStart+1; // this is the actual distance
+      mapGraph[curUp].dDest = manhattanDist(worldMap, curUp, dest);
+      mapGraph[curUp].dSum = mapGraph[curUp].dDest == INT32_MAX
+        ? INT32_MAX
+        : mapGraph[curUp].dStart + mapGraph[curUp].dDest;
+      if (mapGraph[curUp].dSum != INT32_MAX) {
+        nodeQueue.push(mapGraph[curUp]);
+      }
+    }
+    if(cur<900 && cur>870){ // Not bottom
+      curDown = cur+30;
+      mapGraph[curDown].curPos = curDown;
+      mapGraph[curDown].prevPos = cur;
+      mapGraph[curDown].dStart = mapGraph[cur].dStart+1;
+      mapGraph[curDown].dDest = manhattanDist(worldMap, curDown, dest);
+      mapGraph[curDown].dSum = mapGraph[curDown].dDest == INT32_MAX
+        ? INT32_MAX
+        : mapGraph[curDown].dStart + mapGraph[curDown].dDest;
+      if (mapGraph[curDown].dSum != INT32_MAX) {
+        nodeQueue.push(mapGraph[curDown]);
+      }
+    }
+    if(cur%30!=0){ // Not at left side of the map
+      curLeft = cur-1;
+      mapGraph[curLeft].curPos = curLeft;
+      mapGraph[curLeft].prevPos = cur;
+      mapGraph[curLeft].dStart = mapGraph[cur].dStart+1;
+      mapGraph[curLeft].dDest = manhattanDist(worldMap, curLeft, dest);
+      mapGraph[curLeft].dSum = mapGraph[curLeft].dDest == INT32_MAX
+        ? INT32_MAX
+        : mapGraph[curLeft].dStart + mapGraph[curLeft].dDest;
+      if (mapGraph[curLeft].dSum != INT32_MAX) {
+        nodeQueue.push(mapGraph[curLeft]);
+      }
+    }
+    if(cur%30!=29){ // Not at Right side of the map
+      curRight = cur+1;
+      mapGraph[curRight].curPos = curRight;
+      mapGraph[curRight].prevPos = cur;
+      mapGraph[curRight].dStart = mapGraph[cur].dStart+1;
+      mapGraph[curRight].dDest = manhattanDist(worldMap, curRight, dest);
+      mapGraph[curRight].dSum = mapGraph[curRight].dDest == INT32_MAX
+        ? INT32_MAX
+        : mapGraph[curRight].dStart + mapGraph[curRight].dDest;
+      if (mapGraph[curRight].dSum != INT32_MAX) {
+        nodeQueue.push(mapGraph[curRight]);
+      }
+    }
+    cur = nodeQueue.top().curPos;
+    worldMap[mapGraph[cur].curPos] |= PATH;
+    nodeQueue.pop();
+  }
+  int nodeIdx = dest;
+  // while (nodeIdx!=start) {
+  //   worldMap[mapGraph[nodeIdx].prevPos] |= PATH;
+  //   nodeIdx = mapGraph[nodeIdx].prevPos;
+  //   std::cout << "Current node index: " << nodeIdx << std::endl;
   // }
 }
 
