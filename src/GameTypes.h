@@ -3,7 +3,6 @@
 #include <map>
 #include <vector>
 #endif
-// hello
 
 #define BLACK    "\033[30m"
 #define RED      "\033[31m"
