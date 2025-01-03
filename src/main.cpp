@@ -7,11 +7,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <ostream>
 #include <bitset>
 #include <queue>
+#include <stdexcept>
 #include <utility>
+#include <chrono>
 #include "GameTypes.h"
 
 const int mapWidth = 30;
@@ -22,21 +25,21 @@ static int score;
 static int treasureCnt=0; // manage amount of treasure in map
 
 typedef struct graphNode{
-  int curPos = -1;
+  int curPos  = -1;
   int prevPos = -1;
-  int dStart  = UINT32_MAX;
-  int dDest   = UINT32_MAX;
-  int dSum    = UINT32_MAX;
-  bool     isVisited = false;
-  // Value of sum must be updated AFTER dStart and dDest
+  int distToStart  = INT32_MAX;
+  int distToDest   = INT32_MAX;
+  int distSum    = INT32_MAX;
+  bool     isVisited = true;
+  // Value of sum must be updated AFTER distToStart and distToDest
   // There is no possibility of obtaining a negative edge in this case
   bool operator>(const graphNode &other) const{
-    return dSum > other.dSum;
+    return distSum > other.distSum;
   }
   friend std::ostream& operator<<(std::ostream& os, const graphNode&node){
-    os << "Current Node: "  << node.curPos  << "\n"
-       << "Previous Node: " << node.prevPos << "\n"
-       << "Sum Dist: "      << node.dSum
+    os << "Current Node: "  << node.curPos%30 << " ," << node.curPos/30  << "\n"
+       << "Previous Node: " << node.prevPos%30 << " ," << node.prevPos/30 << "\n"
+       << "Sum Dist: "      << node.distSum
        << std::endl;
     return os;
   }
@@ -55,9 +58,7 @@ inline uint32_t currentTopTile(const uint32_t posInfo){
 // but represents 2 nodes' coordinates
 void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<uint32_t, uint32_t> coord);
 inline int manhattanDist(uint32_t *worldMap, int pA, int pB){
-  return !(worldMap[pA]&ROCK && worldMap[pB]&ROCK)
-  ? std::abs(pA/30-pB/30) + std::abs(pA%30-pB%30)
-  : INT32_MAX;
+  return std::abs(pA/30-pB/30) + std::abs(pA%30-pB%30);
 }
 
 int main(){
@@ -65,19 +66,42 @@ int main(){
   std::cout << "Game Start\n";
   std::srand(std::time(nullptr));
   uint32_t worldMap[900]={0};
-  graphNode mapGraph[900];
 
-  int pos = std::rand()%900;
+  int pos;
   int treasurePos;
-  int tarrainSpawnCnt = std::rand()%8+3;
+  int tarrainSpawnCnt = std::rand()%15+5;
 
-  for (int i=0; i<tarrainSpawnCnt; i++) {
+  for (int i=0; i<20; i++) {
+    std::cout << "Gen Terrain " << i << ' ';
     genTerrain(worldMap);
   }
+  std::cout << std::endl;
   treasurePos = genTreasure(worldMap);
+  do {
+    pos = rand()%900;
+  }while (worldMap[pos]&ROCK);
 
-  // WARN: Player sometimes spawns in terrain
-  printf("Player Init Location: (%2d, %2d)\n", (pos)%30+1, (pos)/30+1);
+  // edge test case
+  // treasurePos = 899;
+  // pos = 0;
+  // for (int i=0; i<30; i++) {
+  //   worldMap[0] |= PLAYER;
+  //   worldMap[899] |= TREASURE;
+  //   if(i%4==1){
+  //     for (int j=0; j<29; j++) {
+  //       if ((i*30+j)%2==0) {
+  //         worldMap[i*30+j] |= ROCK;
+  //       }
+  //     }
+  //   }
+  //   else if(i%4==3){
+  //     for (int j=1; j<30; j++) {
+  //       worldMap[i*30+j] |= ROCK;
+  //     }
+  //   }
+  // }
+
+  printf("Player Init Location: (%2d, %2d)\n", (pos)%30, (pos)/30);
   worldMap[pos] |= PLAYER;
   printf("pos: %d, pos val: %d \n", pos, worldMap[pos]);
   std::cout << "'wasd' to move , 'i' for inspect" << std::endl;
@@ -105,8 +129,17 @@ int main(){
   // }
   { // block for testing graph functionalities
     graphNode mapGraph[900];
+    auto start = std::chrono::high_resolution_clock::now();
     pathfindingAStar(worldMap, mapGraph, std::pair<int, int>(pos, treasurePos));
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    
+    std::cout << std::fixed << std::setprecision(9)
+              << "Execution time: " << ns.count() << " ns"
+              << " (" << ns.count() / 1e9 << " seconds)" << std::endl;
   }
+  printMap(worldMap);
 
   std::cout << "Quit Game\n";
   return 0;
@@ -147,7 +180,7 @@ void genTerrain(uint32_t *worldMap){
 * Save the node dist to a priority queue, sorted by dist ofc.
 *
 * Which Node to Search?
-*   Shortest dSum and unvisited
+*   Shortest distSum and unvisited
 * So we might need a priority queue to make nodes wait in line for being searched 
 */
 
@@ -193,6 +226,7 @@ void printMap(const uint32_t *worldMap){
     // print first non-zero tile obj in map
     if(worldMap[i] == 0){
       std::cout << BLACK << tileChar.find(GROUND)->second << ' ' << RESET;
+      // std::cout << tileChar.find(GROUND)->second << ' ';
     }
     else{
       uint32_t tile = currentTopTile(worldMap[i]);
@@ -207,9 +241,11 @@ void printMap(const uint32_t *worldMap){
           std::cout << YELLOW;
         break;
         default:
+          std::cout << RESET;
         break;
       }
       std::cout << tileChar.find(tile)->second << ' ' << RESET;
+      // std::cout << tileChar.find(tile)->second << ' ';
     }
     if(i%30==29) std::cout << std::endl;
   }
@@ -217,19 +253,19 @@ void printMap(const uint32_t *worldMap){
 
 
 void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<uint32_t, uint32_t> coord){
-  uint32_t start = coord.first;
-  uint32_t dest = coord.second;
+  const uint32_t start = coord.first;
+  const uint32_t dest = coord.second;
   uint32_t cur = start;
-  uint32_t curLeft, curRight, curUp, curDown;
+  uint32_t topPriorityNode = -1;
   std::priority_queue
     <graphNode, std::vector<graphNode>, std::greater<graphNode>> nodeQueue;
 
   // Mark player position as start node
   mapGraph[start].curPos = start;
   mapGraph[start].prevPos = start;
-  mapGraph[start].dStart = 0;
-  mapGraph[start].dDest = manhattanDist(worldMap, start, dest);
-  mapGraph[start].dSum = mapGraph[start].dStart + mapGraph[start].dDest;
+  mapGraph[start].distToStart = 0;
+  mapGraph[start].distToDest = manhattanDist(worldMap, start, dest);
+  mapGraph[start].distSum = mapGraph[start].distToStart + mapGraph[start].distToDest;
   mapGraph[start].isVisited = true;
 
   // Search for path until visit dest node
@@ -242,70 +278,72 @@ void pathfindingAStar(uint32_t *worldMap, graphNode *mapGraph, const std::pair<u
     }
   
     // This part needs to be revised if we want to change the ratio of the map
-    if(cur>29 && cur<900){ // Not at the top of the map
-      // 1 is the edge weight of this grid-based mapGraph
-      // dDest is NOT actual distance but theoritically shortest distance
-      curUp = cur-30;
-      mapGraph[curUp].curPos = curUp;
-      mapGraph[curUp].prevPos = cur;
-      mapGraph[curUp].dStart = mapGraph[cur].dStart+1; // this is the actual distance
-      mapGraph[curUp].dDest = manhattanDist(worldMap, curUp, dest);
-      mapGraph[curUp].dSum = mapGraph[curUp].dDest == INT32_MAX
-        ? INT32_MAX
-        : mapGraph[curUp].dStart + mapGraph[curUp].dDest;
-      if (mapGraph[curUp].dSum != INT32_MAX) {
-        nodeQueue.push(mapGraph[curUp]);
+    for(int i=0; i<4; i++){
+      int nxt, distSumNxt, distToDestNxt, distToStartNxt;
+      if     (i==0) { nxt = cur>29  ? cur-30 : cur; }
+      else if(i==1) { nxt = cur<870 ? cur+30 : cur; }
+      else if(i==2) { nxt = cur%30!=0 ? cur-1 : cur; }
+      else if(i==3) { nxt = cur%30!=29 ? cur+1 : cur; }
+      else{ std::cout << "Position Condition Undefined!\n\n"; }
+      if (worldMap[nxt]&ROCK || nxt == mapGraph[cur].prevPos) {
+        // Dont walk back to prev node
+        // skip every operation, check next node
+        // printf("Skip Node: %2d, %2d\n\n", nxt%30, nxt/30);
       }
-    }
-    if(cur<900 && cur>870){ // Not bottom
-      curDown = cur+30;
-      mapGraph[curDown].curPos = curDown;
-      mapGraph[curDown].prevPos = cur;
-      mapGraph[curDown].dStart = mapGraph[cur].dStart+1;
-      mapGraph[curDown].dDest = manhattanDist(worldMap, curDown, dest);
-      mapGraph[curDown].dSum = mapGraph[curDown].dDest == INT32_MAX
-        ? INT32_MAX
-        : mapGraph[curDown].dStart + mapGraph[curDown].dDest;
-      if (mapGraph[curDown].dSum != INT32_MAX) {
-        nodeQueue.push(mapGraph[curDown]);
+      else{
+        // printf("Checking Node: %2d, %2d\n\n", nxt%30, nxt/30);
+        distToStartNxt = mapGraph[cur].distToStart+1;
+        distToDestNxt  = manhattanDist(worldMap, nxt, dest);
+        distSumNxt     = distToStartNxt + distToDestNxt;
+        // printf("New Dist Info: %d, %d, %d\n\n", distToStartNxt, distToDestNxt, distSumNxt);
+        // printf("Cur Dist Info: %d, %d, %d\n\n", mapGraph[nxt].distToStart, mapGraph[nxt].distToDest, mapGraph[nxt].distSum);
+        // if distSumNxt is less-equal than target node sum, update target node stats
+        int shortestInQueue = nodeQueue.empty() ? INT32_MAX : nodeQueue.top().distSum;
+        // printf("Shortest In Queue: %d\n", shortestInQueue);
+        if(distSumNxt < mapGraph[nxt].distSum /*&& distSumNxt <= shortestInQueue*/){
+          // printf("Will Push Node: %2d, %2d\n\n", nxt%30, nxt/30);
+          mapGraph[nxt].distToStart = distToStartNxt;
+          mapGraph[nxt].distToDest  = distToDestNxt;
+          mapGraph[nxt].distSum     = distSumNxt;
+          mapGraph[nxt].curPos      = nxt;
+          mapGraph[nxt].prevPos     = cur;
+          mapGraph[nxt].isVisited   = false;
+          // isCheckingQueue = true;
+          // if adjacent node available, traverse to it without push it to queue
+          if (mapGraph[nxt].distSum == mapGraph[cur].distSum) {
+            topPriorityNode = nxt; // next step WILL BE on this position
+          }
+        }
+        // pushing node into the queue
+        if (mapGraph[nxt].distSum != INT32_MAX && !mapGraph[nxt].isVisited && nxt!=topPriorityNode) {
+          // std::cout << "Push node: " << nxt << "\n";
+          // printf("Push Node:   %2d, %2d\n", nxt%30, nxt/30);
+          // printf("Node Dist:   %d\n\n", mapGraph[nxt].distSum);
+          mapGraph[nxt].isVisited = true;
+          nodeQueue.push(mapGraph[nxt]);
+        }
       }
+    } // end of for-loop
+    if (topPriorityNode!=-1) {
+      cur = topPriorityNode;
+      mapGraph[cur].isVisited = true;
+      // printf("Fast Visit Node:  %2d, %2d\n", cur%30, cur/30);
+      // printf("Node Dist :  %d\n\n", mapGraph[cur].distSum);
+      topPriorityNode=-1;
     }
-    if(cur%30!=0){ // Not at left side of the map
-      curLeft = cur-1;
-      mapGraph[curLeft].curPos = curLeft;
-      mapGraph[curLeft].prevPos = cur;
-      mapGraph[curLeft].dStart = mapGraph[cur].dStart+1;
-      mapGraph[curLeft].dDest = manhattanDist(worldMap, curLeft, dest);
-      mapGraph[curLeft].dSum = mapGraph[curLeft].dDest == INT32_MAX
-        ? INT32_MAX
-        : mapGraph[curLeft].dStart + mapGraph[curLeft].dDest;
-      if (mapGraph[curLeft].dSum != INT32_MAX) {
-        nodeQueue.push(mapGraph[curLeft]);
-      }
+    else if(!nodeQueue.empty()){
+      cur = nodeQueue.top().curPos;
+      // std::cout << mapGraph[cur] << std::endl;
+      nodeQueue.pop();
     }
-    if(cur%30!=29){ // Not at Right side of the map
-      curRight = cur+1;
-      mapGraph[curRight].curPos = curRight;
-      mapGraph[curRight].prevPos = cur;
-      mapGraph[curRight].dStart = mapGraph[cur].dStart+1;
-      mapGraph[curRight].dDest = manhattanDist(worldMap, curRight, dest);
-      mapGraph[curRight].dSum = mapGraph[curRight].dDest == INT32_MAX
-        ? INT32_MAX
-        : mapGraph[curRight].dStart + mapGraph[curRight].dDest;
-      if (mapGraph[curRight].dSum != INT32_MAX) {
-        nodeQueue.push(mapGraph[curRight]);
-      }
+    else if (nodeQueue.empty()) {
+      std::cout << "Treasure is not reachable !\n";
+      return;
     }
-    cur = nodeQueue.top().curPos;
-    worldMap[mapGraph[cur].curPos] |= PATH;
-    nodeQueue.pop();
+    worldMap[cur] |= PATH;
+    // printMap(worldMap);
   }
-  int nodeIdx = dest;
-  // while (nodeIdx!=start) {
-  //   worldMap[mapGraph[nodeIdx].prevPos] |= PATH;
-  //   nodeIdx = mapGraph[nodeIdx].prevPos;
-  //   std::cout << "Current node index: " << nodeIdx << std::endl;
-  // }
+  std::cout << "End pathfinding \n";
 }
 
 

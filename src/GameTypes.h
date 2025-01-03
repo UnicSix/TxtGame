@@ -32,8 +32,8 @@ enum tileType{
   PLAYER    = uint32_t(1),
   ROCK      = uint32_t(1)<<1,
   TREASURE  = uint32_t(1)<<2,
-  MONSTER   =  uint32_t(1)<<3,
-  PATH      =  uint32_t(1)<<4,
+  MONSTER   = uint32_t(1)<<3,
+  PATH      = uint32_t(1)<<4,
   GROUND    = UINT32_MAX     // ground has lowest print priority
 };
 
