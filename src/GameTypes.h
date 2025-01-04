@@ -1,7 +1,11 @@
 #ifndef GAME_TYPES_H
 #define GAME_TYPES_H
+#include <codecvt>
+#include <locale>
 #include <map>
+#include <string>
 #include <vector>
+#include <cstdint>
 #endif
 
 #define BLACK    "\033[30m"
@@ -12,6 +16,8 @@
 #define MAGENTA  "\033[35m"
 #define CYAN     "\033[36m"
 #define WHITE    "\033[37m"
+#define TEST_COLOR "\033[38;5;111m"
+#define ROCK_COLOR "\033[38;5;104m"
 
 // Background Colors
 #define BG_BLACK    "\033[40m"
@@ -26,24 +32,53 @@
 // Reset
 #define RESET   "\033[0m"
 
-#include <cstdint>
-
 enum tileType{
-  PLAYER    = uint32_t(1),
-  ROCK      = uint32_t(1)<<1,
-  TREASURE  = uint32_t(1)<<2,
-  MONSTER   = uint32_t(1)<<3,
-  PATH      = uint32_t(1)<<4,
-  GROUND    = UINT32_MAX     // ground has lowest print priority
+  PLAYER       = uint32_t(1)<<0,
+  ROCK         = uint32_t(1)<<1,
+  TREASURE     = uint32_t(1)<<2,
+  MONSTER      = uint32_t(1)<<3,
+  PATH         = uint32_t(1)<<4, // next bit decides wether to print footprint
+  FOOTPRINT    = uint32_t(1)<<5,
+  PATH_FINDING = uint32_t(1)<<30,
+  GROUND       = UINT32_MAX     // ground has lowest print priority
 };
 
 inline const std::map<uint32_t, char> tileChar = {
-  {PLAYER,   '1'},
+  {PLAYER,   'P'},
   {ROCK,     '0'},
   {TREASURE, '$'},
   {MONSTER,  'M'},
-  {PATH,     'p'},
-  {GROUND,   '.'}
+  {PATH,     '*'},
+  {GROUND,   '.'},
+  {PATH_FINDING, '.'}
+};
+inline const std::map<uint32_t, std::string> colorTileStr = {
+  {PLAYER,   std::string(BLUE)+      "P" +"\033[0m"},
+  {ROCK,     std::string(ROCK_COLOR)+"0" +"\033[0m"},
+  {TREASURE, std::string(YELLOW)+    "$" +"\033[0m"},
+  {MONSTER,  std::string(RED)+       "M" +"\033[0m"},
+  {PATH,     std::string(MAGENTA)+   "*" +"\033[0m"},
+  {PATH_FINDING, std::string(BLACK)+ "." +"\033[0m"},
+  {GROUND,   std::string(BLACK)+     "." +"\033[0m"}
+};
+inline const std::map<uint32_t, std::wstring> wideTileChar = {
+  {PLAYER,   L"\uee62"},
+  // {ROCK,     L"\uf479"},
+  {ROCK,     L"\uf04d"},
+  {MONSTER,  L"\ue73c"},
+  {PATH,     L"\ueea9"},
+  {TREASURE, L"\ue61d"},
+  {GROUND,   L"\uf04d"},
+  {PATH_FINDING,L"\ue73c"}
+};
+inline const std::map<uint32_t, std::string> wideTileColor = {
+  {PLAYER,   std::string(BLUE)},
+  {ROCK,     std::string(ROCK_COLOR)},
+  {TREASURE, std::string(YELLOW)},
+  {MONSTER,  std::string(RED)},
+  {PATH,     std::string(MAGENTA)},
+  {PATH_FINDING, std::string(BLACK)},
+  {GROUND,   std::string(BLACK)}
 };
 
 inline const std::map<char, int> moveDirec = {

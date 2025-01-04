@@ -48,6 +48,7 @@ typedef struct graphNode{
 
 uint32_t playerMove(const uint32_t pos, const char direc, uint32_t *worldMap);
 void printMap(const uint32_t *worldMap);
+void printPlainMap(const uint32_t *worldMap);
 uint32_t genTreasure(uint32_t *worldMap);
 void genTerrain(uint32_t *worldMap);
 inline uint32_t currentTopTile(const uint32_t posInfo){
@@ -64,6 +65,7 @@ inline int manhattanDist(uint32_t *worldMap, int pA, int pB){
 }
 
 int main(){
+  std::setlocale(LC_ALL, "en_US.UTF-8");
   // TODO: recore the path which is actually took by the player
 
   std::cout << "Game Start\n";
@@ -128,7 +130,10 @@ int main(){
   printMap(worldMap);
 
   std::cout << "Quit Game\n";
+  std::wcout << "\033[38;5;111m" << L"\uee62" << std::endl;
+  std::cout << std::string(RESET);
   return 0;
+
 }
 
 void genTerrain(uint32_t *worldMap){
@@ -207,44 +212,45 @@ uint32_t playerMove(const uint32_t pos, const char direc, uint32_t *worldMap){
 }
 
 void printMap(const uint32_t *worldMap){
-  printf("Score: %d\n", score);
+  for(int i=0; i<mapArea; i++){
+    // print first non-zero tile obj in map
+    if(worldMap[i] == 0 || worldMap[i] == PATH_FINDING){
+      std::cout  << wideTileColor.at(GROUND);
+      std::wcout << wideTileChar.at(GROUND) << " ";
+    }
+    else{
+      uint32_t tileIndex = currentTopTile(worldMap[i]);
+      std::cout  << wideTileColor.at(tileIndex);
+      std::wcout << wideTileChar.at(tileIndex) << " ";
+    }
+    if(i%mapWidth==mapWidth-1) std::cout << std::endl;
+  }
+  std::cout << RESET;
+}
+
+void printPlainMap(const uint32_t *worldMap){
   for(int i=0; i<mapArea; i++){
     // print first non-zero tile obj in map
     if(worldMap[i] == 0){
-      std::cout << BLACK << tileChar.find(GROUND)->second << ' ' << RESET;
-      // std::cout << tileChar.find(GROUND)->second << ' ';
+      std::cout << tileChar.find(GROUND)->second << ' ';
     }
     else{
       uint32_t tile = currentTopTile(worldMap[i]);
-      switch (tile) {
-        case(PLAYER):
-          std::cout << BLUE;
-        break;
-        case(ROCK):
-          std::cout << RED;
-        break;
-        case(TREASURE):
-          std::cout << YELLOW;
-        break;
-        default:
-          std::cout << RESET;
-        break;
-      }
-      std::cout << tileChar.find(tile)->second << ' ' << RESET;
-      // std::cout << tileChar.find(tile)->second << ' ';
+      std::cout << tileChar.find(tile)->second << ' ';
     }
     if(i%mapWidth==mapWidth-1) std::cout << std::endl;
   }
 }
 
-
 void pathfindingAStar(uint32_t *worldMap, std::vector<graphNode>& mapGraph, const std::pair<uint32_t, uint32_t> coord){
 // void pathfindingAStar(uint32_t *worldMap, graphNode* mapGraph, const std::pair<uint32_t, uint32_t> coord){
+  // Pathfinding termination went wrong
   const uint32_t start = coord.first;
   const uint32_t dest = coord.second;
   uint32_t cur = start;
   uint32_t topPriorityNode = -1;
   bool *nodeVisited = new bool[mapArea];
+  bool pathFound=false;
   std::priority_queue
     <graphNode, std::vector<graphNode>, std::greater<graphNode>> nodeQueue;
 
@@ -259,6 +265,7 @@ void pathfindingAStar(uint32_t *worldMap, std::vector<graphNode>& mapGraph, cons
   // Search for path until visit dest node
   while (true) {
     if(cur == dest){
+      pathFound = true;
       break;
     }
   
@@ -279,8 +286,11 @@ void pathfindingAStar(uint32_t *worldMap, std::vector<graphNode>& mapGraph, cons
         // printf("Skip Node: %2d, %2d\n\n", nxt%mapWidth, nxt/mapWidth);
       }
       else if(worldMap[nxt]&TREASURE){
+        mapGraph[nxt].curPos  = nxt;
+        mapGraph[nxt].prevPos = cur;
         cur = nxt;
-        return;
+        pathFound=true;
+        break;
       }
       else{
         distToStartNxt = mapGraph[cur].distToStart+1;
@@ -288,7 +298,7 @@ void pathfindingAStar(uint32_t *worldMap, std::vector<graphNode>& mapGraph, cons
         distSumNxt     = distToStartNxt + distToDestNxt;
         // if distSumNxt is less-equal than target node sum, update target node stats
         int shortestInQueue = nodeQueue.empty() ? INT32_MAX : nodeQueue.top().distSum;
-        if(distSumNxt < mapGraph[nxt].distSum /*&& distSumNxt <= shortestInQueue*/){
+        if(distSumNxt < mapGraph[nxt].distSum){
           mapGraph[nxt].distToStart = distToStartNxt;
           mapGraph[nxt].distToDest  = distToDestNxt;
           mapGraph[nxt].distSum     = distSumNxt;
@@ -307,7 +317,10 @@ void pathfindingAStar(uint32_t *worldMap, std::vector<graphNode>& mapGraph, cons
         }
       }
     } // end of for-loop
-    if (topPriorityNode!=-1 && topPriorityNode<mapArea) {
+    if (pathFound) {
+      std::cout << "Path Found\n";
+    }
+    else if (topPriorityNode!=-1 && topPriorityNode<mapArea) {
       cur = topPriorityNode;
       mapGraph[cur].isVisited = true;
       topPriorityNode=-1;
@@ -320,16 +333,60 @@ void pathfindingAStar(uint32_t *worldMap, std::vector<graphNode>& mapGraph, cons
       std::cout << "Treasure is not reachable !\n";
       return;
     }
-    worldMap[cur] |= PATH;
-    // printMap(worldMap);
+    else{
+      std::cout << "Unhandled condition in pathfinding\n line: 345\n";
+    }
+    worldMap[cur] |= PATH_FINDING;
+    // printPlainMap(worldMap);
+  }
+
+  // Record steps
+  int prev = cur;
+  while (prev != start) {
+    worldMap[prev] |= PATH;
+    prev = mapGraph[prev].prevPos;
   }
   std::cout << "Start node: " << start << std::endl;
   std::cout << "Current node: " << cur << std::endl;
   std::cout << "Path is Found" << std::endl;
   std::cout << "End pathfinding \n";
   delete[](nodeVisited);
-
- return;
+  return;
 }
 
+// Color test
 
+/*
+ * map memory layout:
+ *  0: player
+ *  1: rock
+ *  2: treasure
+ *  3: monster
+ *  4: path (this pos is part of actual path)
+ *  5: footprint (0 as this pos is not stepped by player yet)
+ *  6: footprint (bit(5, 6, 7) is packed as a 3-bit unsigned integer)
+ *  7: footprint
+ *  8: 
+ *  9: 
+ * 10  
+ * 11 
+ * 12 
+ * 13 
+ * 14 
+ * 15 
+ * 16 
+ * 17 
+ * 18 
+ * 19 
+ * 20
+ * 21
+ * 23
+ * 24
+ * 25
+ * 26
+ * 27
+ * 28
+ * 29
+ * 30: path finding (this pos is part of pathfinding process)
+ * 31: ground
+*/
